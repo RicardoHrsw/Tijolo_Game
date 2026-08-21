@@ -41,3 +41,25 @@
 - Substituir o bloco individual de 1x1 pelas 7 formas clássicas do Tetris (Tetrominós) através de matrizes 4x4 e implementar a rotação das peças.
 - Dar uma cor própria a cada um dos 7 tetrominós, reaproveitando o mecanismo de pares de cor já montado (basta um `init_pair()` por peça).
 - Deteção de linhas completas e sistema de pontuação.
+
+## Sessão 3 - 21/08/2026
+
+**Funcionalidades implementadas hoje:**
+- Substituição do bloco de 1x1 pelos 7 tetrominós clássicos, guardados em matrizes 4x4 numa tabela `PECAS`.
+- Rotação das peças com o `W` ou a seta para cima. Cada peça roda dentro de uma caixa do seu próprio tamanho — 2x2 no O, 3x3 na maioria, 4x4 no I — e não dentro da matriz 4x4 inteira.
+- *Wall kick*: encostada a uma parede, a peça tenta afastar-se um ou dois quadrados para o lado antes de a rotação ser recusada. Sem isto o I nunca rodava junto às bordas.
+- Toda a deteção de colisões passou para uma única função, `podeColocar()`, usada pelo movimento lateral, pela gravidade e pela rotação. Antes a mesma verificação estava escrita em vários sítios.
+- Uma cor por peça, com o tom definido em RGB através do `init_color()` e a cor básica do ncurses como alternativa para terminais mais limitados.
+- Deteção de linhas completas e pontuação clássica do Tetris: 40, 100, 300 e 1200 pontos conforme se façam 1, 2, 3 ou 4 linhas de uma vez. Pontos e linhas passaram a aparecer no cabeçalho e na mensagem final.
+- Correções ao ciclo principal: a fila do teclado passou a ser esvaziada a cada frame (lia-se uma tecla só, e as restantes acumulavam-se, fazendo a peça mexer-se sozinha depois de largar a tecla); a ordem passou a ser ler → gravidade → desenhar, para o movimento aparecer no próprio frame em vez do seguinte; e o `S` reinicia o contador da gravidade, senão a peça descia duas casas quase ao mesmo tempo.
+- O `Makefile` deixou de estar no `.gitignore` e passa a ir para o repositório, como já era anunciado na mensagem de commit da sessão anterior. Corrigidos também dois blocos de código por fechar no guia de compilação, que estavam a esconder a secção do Linux.
+
+**Maior dificuldade encontrada e como resolvi (ou não resolvi...):**
+- A rotação. Rodar a matriz 4x4 inteira faz as peças de 3 quadrados de largura saltarem para o canto da matriz a cada rotação, em vez de rodarem no sítio. Resolvido guardando em cada peça o lado da caixa em que ela roda e aplicando a fórmula `novo[y][x] = antigo[lado-1-x][y]` só a essa caixa.
+- As cores no PowerShell, que ficou por resolver. As peças saíam com tons escuros e o T era praticamente invisível. A causa não estava no código: o Windows PowerShell traz uma paleta de consola própria que substitui dois lugares da tabela de 16 cores — o índice 5 (magenta, a cor do T) passa a `#012456`, que é exatamente o azul do fundo da janela, e o índice 6 (amarelo, a cor do O) passa a quase branco. Confirmei isto lendo a paleta no registo do Windows, em `HKCU:\Console`. A saída seria pedir um terminal de 256 cores, para as peças usarem os índices 8 a 15, que o PowerShell não altera — mas a consola do Windows não digere bem as sequências desse terminal e o ecrã sai com lixo. Ficou decidido testar o jogo no `cmd.exe`, onde a paleta é a de fábrica e as cores saem certas.
+- Um pormenor pequeno na limpeza de linhas que dava um bug difícil de ver: quando uma linha cheia é apagada, a linha que desce para o lugar dela tem de ser testada outra vez. Sem isso, duas linhas cheias seguidas só contavam como uma.
+
+**Próximo passo planeado:**
+- Níveis de velocidade: acelerar a queda à medida que as linhas vão sendo feitas. Neste momento a velocidade é fixa e o jogo nunca fica mais difícil.
+- Mostrar a peça seguinte ao lado do tabuleiro.
+- Guardar a melhor pontuação entre partidas.
