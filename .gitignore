@@ -1,0 +1,9 @@
+# Executavel e ficheiros de compilacao
+TijoloGame.exe
+*.exe
+*.o
+
+# Ficheiros de trabalho que nao vao para o repositorio
+GUIAO.md
+Makefile
+README.md
