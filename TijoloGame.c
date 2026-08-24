@@ -10,16 +10,35 @@
 #define NUM_PECAS 7
 #define TAM 4  // lado da matriz que guarda cada peca
 
+// Os pares 1..NUM_PECAS sao as pecas; o seguinte fica para a sombra.
 #define PAR_DA_PECA(i) ((i) + 1)
+#define PAR_SOMBRA     (NUM_PECAS + 1)
+
+// Cinzento da sombra: o indice 8 e o "preto intenso" da paleta de 16 cores,
+// que no cmd.exe sai cinzento. Nao e usado por nenhuma peca (essas ficam nos
+// indices 9 a 15), por isso pode ser mudado sem estragar as cores das pecas.
+#define COR_SOMBRA 8
+
+// Coluna onde comeca o painel lateral: as duas paredes mais as celulas do
+// tabuleiro (cada uma ocupa dois caracteres) e ainda tres espacos de folga.
+#define PAINEL_X (2 + LARGURA * 2 + 2 + 3)
 
 #define MIN_LINHAS  (ALTURA + 4)
-#define MIN_COLUNAS 56  
+#define MIN_COLUNAS 56
+
+// Ritmo de queda medido em frames de 50 ms: 10 frames = meio segundo por casa.
+// A cada nivel desce um frame, ate ao limite de VELOCIDADE_MINIMA.
+#define LINHAS_POR_NIVEL   10
+#define VELOCIDADE_INICIAL 10
+#define VELOCIDADE_MINIMA   2
+
+#define FICHEIRO_RECORDE "recorde.txt"
 
 typedef struct {
     int forma[TAM][TAM];
     int lado;
-    int cor;       
-    short rgb[3];  
+    int cor;
+    short rgb[3];
 } Peca;
 
 const Peca PECAS[NUM_PECAS] = {
@@ -60,14 +79,19 @@ const int PONTOS_POR_LINHAS[] = {0, 40, 100, 300, 1200};
 int tabuleiro[ALTURA][LARGURA] = {0};
 
 int peca_atual;       // indice em PECAS
+int proxima_peca;     // indice da peca que entra a seguir, mostrada no painel
 int forma[TAM][TAM];  // forma da peca a cair, ja com a rotacao aplicada
 int px;               // coluna do canto superior esquerdo da matriz da peca
 int py;               // linha do canto superior esquerdo da matriz da peca
 int jogo_rodando = 1;
 int tem_cor = 0;
+int tem_sombra = 0;   // se ha cinzento disponivel para desenhar a sombra a cheio
 int pontos = 0;
 int linhas_feitas = 0;
-int contador_frames = 0;  // frames desde a ultima descida por gravidade
+int nivel = 1;
+int velocidade = VELOCIDADE_INICIAL;  // frames entre duas descidas por gravidade
+int recorde = 0;                      // melhor pontuacao de sempre, lida do ficheiro
+int contador_frames = 0;              // frames desde a ultima descida por gravidade
 
 void iniciarCores() {
     if (!has_colors()) return;
@@ -89,6 +113,15 @@ void iniciarCores() {
     }
 
     tem_cor = 1;
+
+    // Num terminal de 8 cores nao ha cinzento nenhum -- o unico tom entre o
+    // preto e o branco seria o proprio fundo. Nesse caso a sombra passa a ser
+    // desenhada com dois caracteres em vez de um bloco cheio.
+    if (!intensas) return;
+
+    if (propria) init_color(COR_SOMBRA, 400, 400, 400);
+
+    if (init_pair(PAR_SOMBRA, COLOR_BLACK, COR_SOMBRA) != ERR) tem_sombra = 1;
 }
 
 
@@ -103,6 +136,20 @@ void desenharBloco(int par) {
 }
 
 
+// A sombra marca onde a peca vai aterrar. Sem cinzento disponivel desenha-se
+// com dois pontos, que nao se confundem nem com o fundo (" .") nem com as
+// pecas em texto ("[]") de um terminal sem cores.
+void desenharSombra() {
+    if (!tem_sombra) {
+        printw("::");
+        return;
+    }
+    attron(COLOR_PAIR(PAR_SOMBRA));
+    printw("  ");
+    attroff(COLOR_PAIR(PAR_SOMBRA));
+}
+
+
 void iniciarEcra() {
     initscr();
     cbreak();
@@ -112,6 +159,29 @@ void iniciarEcra() {
     nodelay(stdscr, TRUE);
 
     iniciarCores();
+}
+
+// --- Melhor pontuacao -------------------------------------------------------
+// Fica guardada num ficheiro de texto ao lado do executavel. Se o ficheiro nao
+// existir (primeira partida) ou tiver lixo la dentro, comeca-se do zero em vez
+// de dar erro: um recorde perdido nao e razao para o jogo nao arrancar.
+int lerRecorde() {
+    FILE *f = fopen(FICHEIRO_RECORDE, "r");
+    if (!f) return 0;
+
+    int valor = 0;
+    if (fscanf(f, "%d", &valor) != 1 || valor < 0) valor = 0;
+
+    fclose(f);
+    return valor;
+}
+
+void gravarRecorde(int valor) {
+    FILE *f = fopen(FICHEIRO_RECORDE, "w");
+    if (!f) return;
+
+    fprintf(f, "%d\n", valor);
+    fclose(f);
 }
 
 // Verifica se a forma dada cabe na posicao (nx, ny) sem sair do tabuleiro
@@ -142,8 +212,41 @@ int pecaEm(int y, int x) {
     return forma[ly][lx] ? PAR_DA_PECA(peca_atual) : 0;
 }
 
+// Linha onde a peca ficaria se caisse ate ao fim a partir de onde esta.
+// Serve para dois sitios: desenhar a sombra e fazer a queda instantanea.
+// O limite da ALTURA e uma salvaguarda: com a peca vazia -- o que acontece
+// depois do fim do jogo -- nada trava a queda e o ciclo nunca mais parava.
+int linhaDeAterragem() {
+    int y = py;
+
+    while (y < ALTURA && podeColocar(forma, px, y + 1)) y++;
+
+    return y;
+}
+
+// Diz se a sombra ocupa a celula (y, x). Nao devolve cor porque a sombra tem
+// sempre o mesmo aspeto, seja qual for a peca. A linha de aterragem vem de
+// fora e nao e calculada aqui, senao era refeita para cada uma das 200
+// celulas do tabuleiro em vez de uma vez por frame.
+int sombraEm(int sombra_y, int y, int x) {
+    int ly = y - sombra_y;
+    int lx = x - px;
+
+    if (ly < 0 || ly >= TAM || lx < 0 || lx >= TAM) return 0;
+
+    return forma[ly][lx];
+}
+
+int sortearPeca() {
+    return rand() % NUM_PECAS;
+}
+
 void novaPeca() {
-    peca_atual = rand() % NUM_PECAS;
+    // A peca que entra e a que ja estava anunciada no painel; so depois se
+    // sorteia a seguinte, senao o painel mostrava a peca que esta a cair.
+    peca_atual = proxima_peca;
+    proxima_peca = sortearPeca();
+
     memcpy(forma, PECAS[peca_atual].forma, sizeof forma);
 
     px = (LARGURA - TAM) / 2;
@@ -175,10 +278,20 @@ int limparLinhas() {
         memset(tabuleiro[0], 0, sizeof tabuleiro[0]);
 
         limpas++;
-        y++;  
+        y++;
     }
 
     return limpas;
+}
+
+// A cada LINHAS_POR_NIVEL linhas sobe-se um nivel e a peca passa a cair um
+// frame mais depressa. O limite existe para o jogo nao chegar a um ponto em
+// que a peca desce mais depressa do que da para reagir.
+void atualizarNivel() {
+    nivel = linhas_feitas / LINHAS_POR_NIVEL + 1;
+
+    velocidade = VELOCIDADE_INICIAL - (nivel - 1);
+    if (velocidade < VELOCIDADE_MINIMA) velocidade = VELOCIDADE_MINIMA;
 }
 
 void travarPeca() {
@@ -190,7 +303,13 @@ void travarPeca() {
 
     int limpas = limparLinhas();
     linhas_feitas += limpas;
-    pontos += PONTOS_POR_LINHAS[limpas];
+
+    // A mesma jogada vale mais em niveis altos, como no Tetris original.
+    pontos += PONTOS_POR_LINHAS[limpas] * nivel;
+
+    if (pontos > recorde) recorde = pontos;
+
+    atualizarNivel();
 
     novaPeca();
 }
@@ -218,23 +337,58 @@ void rodarPeca() {
     }
 }
 
+// Painel a direita do tabuleiro: a peca que entra a seguir e os contadores.
+// Aqui usa-se mvprintw (posicao absoluta) e nao printw, porque o tabuleiro e
+// desenhado linha a linha e deixa o cursor sempre na margem esquerda.
+void desenharPainel() {
+    const int topo_peca = 3;
+
+    mvprintw(topo_peca - 1, PAINEL_X, "SEGUINTE");
+
+    // A forma esta encostada ao canto da matriz 4x4, por isso centra-se a
+    // caixa de rotacao da peca (2x2 no O, 3x3 na maioria, 4x4 no I).
+    int lado = PECAS[proxima_peca].lado;
+    int desvio = (TAM - lado) / 2;
+
+    for (int y = 0; y < lado; y++) {
+        for (int x = 0; x < lado; x++) {
+            if (!PECAS[proxima_peca].forma[y][x]) continue;
+
+            move(topo_peca + desvio + y, PAINEL_X + (desvio + x) * 2);
+            desenharBloco(PAR_DA_PECA(proxima_peca));
+        }
+    }
+
+    mvprintw(topo_peca + TAM + 2, PAINEL_X, "Pontos:  %d", pontos);
+    mvprintw(topo_peca + TAM + 3, PAINEL_X, "Linhas:  %d", linhas_feitas);
+    mvprintw(topo_peca + TAM + 4, PAINEL_X, "Nivel:   %d", nivel);
+    mvprintw(topo_peca + TAM + 6, PAINEL_X, "Recorde: %d", recorde);
+}
+
 void desenharTela() {
     erase();  // Limpa o ecra
 
-    printw("=== TIJOLO GAME ===   Pontos: %-6d Linhas: %d\n", pontos, linhas_feitas);
+    int sombra_y = linhaDeAterragem();
+
+    printw("=== TIJOLO GAME ===\n");
     for (int y = 0; y < ALTURA; y++) {
         printw("<!");
         for (int x = 0; x < LARGURA; x++) {
             int par = pecaEm(y, x);           // Peca a cair
             if (!par) par = tabuleiro[y][x];  // Peca travada
 
-            if (par) desenharBloco(par);
-            else     printw(" .");  // Fundo
+            // A peca vem primeiro: quando ela ja esta em cima da sombra (perto
+            // do fundo) e a peca que se ve, nao a sombra por baixo.
+            if (par)                          desenharBloco(par);
+            else if (sombraEm(sombra_y, y, x)) desenharSombra();
+            else                              printw(" .");  // Fundo
         }
         printw("!>\n");
     }
     printw("  ====================\n");
-    printw("  A:Esq  D:Dir  S:Baixo  W:Rodar  Q:Sair");
+    printw("  A:Esq  D:Dir  S:Baixo  W:Rodar  Espaco:Cair  Q:Sair");
+
+    desenharPainel();
 
     refresh();
 }
@@ -259,9 +413,21 @@ void processarEntrada() {
             case KEY_UP:    case 'w': case 'W':
                 rodarPeca();
                 break;
+            case ' ':
+                // Queda instantanea: a peca vai direita ao sitio onde a sombra
+                // esta e trava logo, sem esperar pelo frame da gravidade.
+                py = linhaDeAterragem();
+                travarPeca();
+                contador_frames = 0;
+
+                // Sem isto, as teclas que estiverem na fila atras do espaco
+                // (basta te-lo carregado com forca) eram aplicadas a peca
+                // seguinte, que acabava de entrar, e ela caia logo tambem.
+                flushinp();
+                return;
             case 'q': case 'Q':
                 jogo_rodando = 0;
-                return;  
+                return;
         }
     }
 }
@@ -282,9 +448,15 @@ int main() {
     }
 
     srand((unsigned) time(NULL));
-    novaPeca();
 
-    int velocidade = 10;
+    // Guarda-se o valor lido a parte: o 'recorde' vai sendo atualizado durante
+    // a partida para o painel o mostrar a subir, e no fim e preciso saber com
+    // que numero a partida comecou para dizer se houve ou nao recorde novo.
+    int recorde_anterior = lerRecorde();
+    recorde = recorde_anterior;
+
+    proxima_peca = sortearPeca();  // enche o painel antes de a primeira peca entrar
+    novaPeca();
 
     while (jogo_rodando) {
         processarEntrada();
@@ -301,7 +473,17 @@ int main() {
 
     endwin();
 
-    printf("\nGAME OVER! Fizeste %d pontos em %d linhas. Obrigado por jogar o Tijolo Game!\n",
-           pontos, linhas_feitas);
+    if (pontos > recorde_anterior) gravarRecorde(pontos);
+
+    printf("\nGAME OVER! Fizeste %d pontos em %d linhas, ate ao nivel %d.\n",
+           pontos, linhas_feitas, nivel);
+
+    if (pontos > recorde_anterior) {
+        printf("Novo recorde! O anterior era de %d pontos.\n", recorde_anterior);
+    } else {
+        printf("O recorde continua nos %d pontos.\n", recorde_anterior);
+    }
+
+    printf("Obrigado por jogar o Tijolo Game!\n");
     return 0;
 }

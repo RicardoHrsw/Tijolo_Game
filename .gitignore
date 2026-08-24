@@ -3,3 +3,5 @@ TijoloGame.exe
 *.exe
 *.o
 
+# Melhor pontuacao, gerada pelo jogo em cada maquina
+recorde.txt

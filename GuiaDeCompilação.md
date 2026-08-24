@@ -1,37 +1,19 @@
-## Como compilar
+# Guia de compilação
 
-Precisa de um compilador C e da biblioteca ncurses (versão *wide*, `ncursesw`).
+## O que é preciso
 
-### Windows (MSYS2 / UCRT64)
-
-```
-gcc -std=c11 -Wall -Wextra TijoloGame.c -o TijoloGame.exe -IC:/msys64/ucrt64/include/ncursesw -lncursesw
-```
-
-O `-I` é necessário porque neste pacote o `curses.h` não está na raiz dos
-includes, mas sim em `include/ncursesw/`. Se a instalação do MSYS2 estiver
-noutro sítio, é esse caminho que muda.
-
-O comando acima funciona tal e qual no PowerShell, no `cmd.exe` e no Git Bash.
-
-Para instalar o ncurses, caso falte:
+- **MSYS2** instalado em `C:\msys64` (é o caminho que o `Makefile` procura).
+- Dentro do MSYS2, o compilador, o ncurses (versão *wide*, `ncursesw`) e o make:
 
 ```
+pacman -S mingw-w64-ucrt-x86_64-gcc
 pacman -S mingw-w64-ucrt-x86_64-ncurses
+pacman -S mingw-w64-ucrt-x86_64-make
 ```
 
-### Linux
+## Comandos
 
-Aqui o `curses.h` está no sítio normal, por isso não é preciso o `-I`:
-
-```
-gcc -std=c11 -Wall -Wextra TijoloGame.c -o TijoloGame -lncursesw
-```
-
-### Com o Makefile
-
-O repositório traz um `Makefile` que trata do `-I` sozinho, tanto no
-PowerShell como no `cmd.exe` e no Git Bash:
+Na pasta do projeto:
 
 ```
 mingw32-make          compila
@@ -39,26 +21,17 @@ mingw32-make run      compila e joga
 mingw32-make clean    apaga o executável
 ```
 
-## Cores das peças
+Funcionam tal e qual no PowerShell, no `cmd.exe` e no Git Bash. O `Makefile`
+trata sozinho de encontrar o ncurses.
 
-**No Windows, jogar no `cmd.exe`.**
+Em Linux é o mesmo, mas com `make` em vez de `mingw32-make`.
 
-Cada peça tem o seu tom próprio, definido em RGB na tabela `PECAS`. Em
-terminais que anunciem 256 cores — Git Bash, Windows Terminal, Linux — as
-peças usam os índices de cor 8 a 15 e recebem esse tom exacto.
+## Onde jogar
 
-No Windows PowerShell duas peças saem com a cor errada. A consola do
-PowerShell traz uma paleta própria que substitui dois lugares da tabela de 16
-cores:
+**No Windows, jogar no `cmd.exe`** — é onde as cores das peças saem certas. No
+PowerShell duas peças aparecem com a cor errada (o T fica igual ao fundo da
+janela e o O fica quase branco), porque a consola do PowerShell traz uma
+paleta própria que substitui dois lugares da tabela de cores.
 
-| Índice | Cor normal | No PowerShell | Peça afectada |
-|--------|-----------|---------------|---------------|
-| 5      | magenta   | `#012456`     | T — fica igual ao fundo da janela |
-| 6      | amarelo   | `#EEEDF0`     | O — fica quase branco |
-
-Forçar `TERM=xterm-256color` levaria as peças para os índices 8 a 15, que o
-PowerShell não altera, mas a consola do Windows não digere bem as sequências
-desse terminal e o ecrã sai com lixo. Por isso o jogo respeita o `TERM` que
-encontrar e não mexe nele.
-
-No `cmd.exe` a paleta é a de fábrica e as cores saem certas.
+A janela tem de ter pelo menos **56 colunas por 24 linhas**; abaixo disso o
+jogo avisa e não arranca.
