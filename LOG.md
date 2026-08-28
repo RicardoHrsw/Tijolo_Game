@@ -91,3 +91,23 @@
 - Pausa no jogo com a tecla P.
 - Ecrã de fim de jogo dentro do próprio ncurses, com opção de jogar outra vez sem ter de voltar a correr o programa.
 - Modo B-Type do Tetris Original (O Tetris B-Type é um modo de jogo clássico presente nas primeiras versões da Nintendo, como o Tetris para a NES e o Tetris para a Game Boy. O objetivo é eliminar exatamente 25 linhas num tabuleiro que começa com blocos aleatórios pré-carregados, vai pedir ao utilizador um nivel de dificuldade) 
+
+## Sessão 5 - 28/08/2026
+
+**Funcionalidades implementadas hoje:**
+- Pausa com a tecla `P`. O jogo congela e o tabuleiro fica à vista por baixo do aviso. O contador da gravidade também para, senão a peça descia logo ao voltar.
+- Menu de modos e ecrã de fim de jogo, os dois dentro do ncurses. Antes o resultado era escrito com `printf` depois do `endwin()` e era preciso correr o programa outra vez para jogar mais uma partida; agora dá para repetir ou voltar ao menu ali mesmo.
+- O `main()` passou a ser o ciclo menu → partida → ecrã final → menu. Como se joga várias vezes seguidas, o estado deixou de poder ser posto só na declaração das variáveis e nasceu a `reiniciarJogo()`.
+- Modo B-Type, o clássico da NES: limpar 25 linhas num tabuleiro que já começa com blocos. Pedem-se duas coisas separadas antes de começar, como no original — o nível de velocidade e a altura da pilha inicial, os dois de 0 a 9. Por serem separadas, dá para pedir uma pilha alta a jogar devagar.
+- É o primeiro modo em que o jogo também se pode ganhar, e não só perder. O painel ganhou um contador "Faltam" e o ecrã final distingue os dois casos.
+- Um recorde por modo, em vez de um só: no B-Type joga-se contra um objetivo fixo, portanto as pontuações não são da mesma ordem. O `recorde.txt` passou a guardar dois números.
+- Sorteio das peças por sacos de sete, como no Tetris moderno, em vez do `rand() % 7`. As sete aparecem uma vez cada antes de qualquer uma repetir — acabaram as esperas longas pelo I.
+- Atraso na travagem (*lock delay*). Uma peça assente espera meio segundo antes de travar, e cada mexida durante essa espera põe a contagem a zero. Antes travava na jogada seguinte da gravidade, o que nos níveis altos obrigava a ter a peça no sítio certo antes de ela aterrar.
+- Peça guardada (*hold*), com a tecla `C`, e uma caixa "GUARDADA" no painel. Só uma troca por peça.
+- Comandos só nas setas, e rotação nos dois sentidos: `Z` para a esquerda, `X` para a direita. O `A`, `D`, `S` e `W` saíram. A conta da rotação é a mesma lida ao contrário, não foi preciso escrever nenhuma tabela de posições.
+
+**Maior dificuldade encontrada e como resolvi (ou não resolvi...):**
+- O sistema de saco de peças pois genuinamente não tinha nenhuma ideia da sua logica então fui ver projetos como referencia e perguntar a IA como isso funciona
+
+**Próximo passo planeado:**
+- Ainda mais polimento se possivel. isto cada vez fica mais curto quanto mais eu fico perto do fim do meu projeto
