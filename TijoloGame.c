@@ -4,6 +4,7 @@
 #include <time.h>    
 #include <curses.h>  // como o curses.h não esta no meu includePath eu uso o makefile para compilar isto facilmente
 
+// Constantes
 #define LARGURA 10
 #define ALTURA 20
 
@@ -43,6 +44,7 @@
 #define FIM_OUTRA_VEZ 1
 #define FIM_MENU      2
 
+// Sistema de pecas
 typedef struct {
     int forma[TAM][TAM];
     int lado;
@@ -82,8 +84,10 @@ const Peca PECAS[NUM_PECAS] = {
 };
 
 
+// Sistema de pontos: 1, 2, 3 ou 4 linhas de uma vez
 const int PONTOS_POR_LINHAS[] = {0, 40, 100, 300, 1200};
 
+// Estado do jogo 
 int tabuleiro[ALTURA][LARGURA] = {0};
 
 int peca_atual;       
@@ -117,6 +121,7 @@ int recordes[NUM_MODOS] = {0};
 int recorde = 0;            
 int recorde_anterior = 0;  
 
+// Sistema de cores 
 void iniciarCores() {
     if (!has_colors()) return;
 
@@ -146,6 +151,7 @@ void iniciarCores() {
 }
 
 
+// Desenho de um bloco e da sombra/ghost
 void desenharBloco(int par) {
     if (!tem_cor) {
         printw("[]");
@@ -167,6 +173,7 @@ void desenharSombra() {
 }
 
 
+// Arranque do ncurses e leitura de teclas 
 void iniciarEcra() {
     initscr();
     cbreak();
@@ -189,6 +196,7 @@ const char *nomeModo(int m) {
     return m == MODO_B ? "B-Type" : "A-Type";
 }
 
+// Sistema de recordes (facil de fazer batota pois não encripetei o ficheiro)
 void lerRecordes() {
     FILE *f = fopen(FICHEIRO_RECORDE, "r");
     if (!f) return;
@@ -213,6 +221,7 @@ void gravarRecordes() {
     fclose(f);
 }
 
+// Sistema de colisoes 
 int podeColocar(const int f[TAM][TAM], int nx, int ny) {
     for (int y = 0; y < TAM; y++) {
         for (int x = 0; x < TAM; x++) {
@@ -237,6 +246,7 @@ int pecaEm(int y, int x) {
     return forma[ly][lx] ? PAR_DA_PECA(peca_atual) : 0;
 }
 
+// Sombra/ghost
 int linhaDeAterragem() {
     int y = py;
 
@@ -254,6 +264,7 @@ int sombraEm(int sombra_y, int y, int x) {
     return forma[ly][lx];
 }
 
+// sorteio das pecas 
 int saco[NUM_PECAS];
 int saco_tiradas = NUM_PECAS;  
 
@@ -277,6 +288,7 @@ int sortearPeca() {
     return saco[saco_tiradas++];
 }
 
+// Entrada de pecas e peca guardada 
 void entrarPeca(int indice) {
     peca_atual = indice;
 
@@ -320,6 +332,7 @@ void trocarGuardada() {
     ja_trocou = 1;
 }
 
+// Sistema de limpeza de linhas (recursivo) 
 int filaCheia(int y) {
     for (int x = 0; x < LARGURA; x++) {
         if (!tabuleiro[y][x]) return 0;
@@ -327,7 +340,7 @@ int filaCheia(int y) {
     return 1;
 }
 
-// Recursiva: faz descer a fila de cima para a fila y, ate chegar ao topo.
+// Recursivo
 void baixarFilas(int y) {
     if (y <= 0) {                             // caso base: o topo fica vazio
         memset(tabuleiro[0], 0, sizeof tabuleiro[0]);
@@ -338,7 +351,7 @@ void baixarFilas(int y) {
     baixarFilas(y - 1);                       // chamada recursiva
 }
 
-// Recursiva: percorre o tabuleiro de baixo para cima e devolve as linhas limpas.
+// Recursivo
 int limparAPartirDe(int y) {
     if (y < 0) return 0;                      // caso base: passou do topo
 
@@ -352,6 +365,7 @@ int limparLinhas() {
     return limparAPartirDe(ALTURA - 1);
 }
 
+// Sistema de niveis e velocidade
 void atualizarNivel() {
     nivel = nivel_inicial + linhas_feitas / LINHAS_POR_NIVEL;
 
@@ -364,6 +378,7 @@ int linhasQueFaltam() {
     return faltam > 0 ? faltam : 0;
 }
 
+// Tabuleiro inicial do modo B-Type 
 void encherTabuleiro(int filas) {
     for (int y = ALTURA - filas; y < ALTURA; y++) {
         int vazias = 0;
@@ -382,6 +397,7 @@ void encherTabuleiro(int filas) {
     }
 }
 
+// Travar a peca e aqui que se contam os pontos
 void travarPeca() {
     for (int y = 0; y < TAM; y++) {
         for (int x = 0; x < TAM; x++) {
@@ -408,6 +424,7 @@ void travarPeca() {
     novaPeca();
 }
 
+// Sistema de rotacao (com wall kick) 
 int rodarPeca(int sentido) {
     int novo[TAM][TAM] = {0};
     int n = PECAS[peca_atual].lado;
@@ -431,6 +448,7 @@ int rodarPeca(int sentido) {
     return 0;
 }
 
+// Atraso na travagem (lock delay) 
 int estaAssente() {
     return !podeColocar(forma, px, py + 1);
 }
@@ -443,6 +461,7 @@ void adiarTravagem() {
     adiamentos++;
 }
 
+// Painel lateral pecas, pontos e recorde 
 void desenharPecaNoPainel(int topo, int indice) {
     if (indice < 0) return;
 
@@ -501,6 +520,7 @@ void desenharPausa() {
     }
 }
 
+// Desenho do ecra de jogo 
 void desenharTela() {
     erase();  // Limpa o ecra
 
@@ -530,6 +550,7 @@ void desenharTela() {
     refresh();
 }
 
+// Teclado os comandos do jogador 
 void processarEntrada() {
     int c;
 
@@ -590,6 +611,7 @@ void processarEntrada() {
 }
 
 
+// Gravidade 
 void atualizarLogica() {
     if (!estaAssente()) {
         frames_no_chao = 0;
@@ -608,8 +630,7 @@ void atualizarLogica() {
     if (frames_no_chao >= ATRASO_TRAVAGEM) travarPeca();
 }
 
-//menus
-
+// Menus 
 int escolherNivel() {
     for (;;) {
         erase();
@@ -710,6 +731,7 @@ int menuModos() {
     }
 }
 
+// Ecra de fim de jogo 
 int ecraFinal() {
     erase();
 
@@ -751,6 +773,7 @@ int ecraFinal() {
     }
 }
 
+// Reinicio poe tudo a zeros para nova partida 
 void reiniciarJogo() {
     memset(tabuleiro, 0, sizeof tabuleiro);
 
@@ -778,6 +801,7 @@ void reiniciarJogo() {
     novaPeca();
 }
 
+// Ciclo principal do jogo 
 void cicloDeJogo() {
     while (jogo_rodando) {
         processarEntrada();
@@ -789,6 +813,7 @@ void cicloDeJogo() {
     }
 }
 
+// Arranque do programa 
 int main() {
     iniciarEcra();
 
