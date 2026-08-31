@@ -320,26 +320,36 @@ void trocarGuardada() {
     ja_trocou = 1;
 }
 
-int limparLinhas() {
-    int limpas = 0;
+int filaCheia(int y) {
+    for (int x = 0; x < LARGURA; x++) {
+        if (!tabuleiro[y][x]) return 0;
+    }
+    return 1;
+}
 
-    for (int y = ALTURA - 1; y >= 0; y--) {
-        int cheia = 1;
-        for (int x = 0; x < LARGURA; x++) {
-            if (!tabuleiro[y][x]) { cheia = 0; break; }
-        }
-        if (!cheia) continue;
-
-        for (int l = y; l > 0; l--) {
-            memcpy(tabuleiro[l], tabuleiro[l - 1], sizeof tabuleiro[l]);
-        }
+// Recursiva: faz descer a fila de cima para a fila y, ate chegar ao topo.
+void baixarFilas(int y) {
+    if (y <= 0) {                             // caso base: o topo fica vazio
         memset(tabuleiro[0], 0, sizeof tabuleiro[0]);
-
-        limpas++;
-        y++;
+        return;
     }
 
-    return limpas;
+    memcpy(tabuleiro[y], tabuleiro[y - 1], sizeof tabuleiro[y]);
+    baixarFilas(y - 1);                       // chamada recursiva
+}
+
+// Recursiva: percorre o tabuleiro de baixo para cima e devolve as linhas limpas.
+int limparAPartirDe(int y) {
+    if (y < 0) return 0;                      // caso base: passou do topo
+
+    if (!filaCheia(y)) return limparAPartirDe(y - 1);
+
+    baixarFilas(y);
+    return 1 + limparAPartirDe(y);            // repete a mesma fila, ja com o que desceu
+}
+
+int limparLinhas() {
+    return limparAPartirDe(ALTURA - 1);
 }
 
 void atualizarNivel() {
